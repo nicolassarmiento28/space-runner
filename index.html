@@ -251,7 +251,10 @@
             planets: [],
             asteroids: [],
             particles: [],
-            frameCount: 0
+            frameCount: 0,
+            lastTouchY: 0,
+            lastTouchX: 0,
+            lastTouchTime: 0
         };
 
         const LANE_WIDTH = 150;
@@ -814,9 +817,9 @@
             ctx.fillText('S / DOWN  -> Move Down', canvas.width / 2, 335);
             ctx.fillText('SPACE     -> Shoot', canvas.width / 2, 355);
             
-            ctx.fillText('TOUCH TOP    -> Move Up', canvas.width / 2, 390);
-            ctx.fillText('TOUCH BOTTOM -> Move Down', canvas.width / 2, 410);
-            ctx.fillText('TOUCH CENTER -> Shoot', canvas.width / 2, 430);
+            ctx.fillText('SWIPE UP    -> Move Up', canvas.width / 2, 390);
+            ctx.fillText('SWIPE DOWN  -> Move Down', canvas.width / 2, 410);
+            ctx.fillText('TAP CENTER  -> Shoot', canvas.width / 2, 430);
             
             ctx.fillStyle = COLORS.lightBlue;
             ctx.fillText('=== GOAL ===', canvas.width / 2, 480);
@@ -933,9 +936,12 @@
             initAudio();
             
             const touch = e.touches[0];
+            game.lastTouchY = touch.clientY;
+            game.lastTouchX = touch.clientX;
+            game.lastTouchTime = Date.now();
+            
             const rect = canvas.getBoundingClientRect();
-            const y = touch.clientY - rect.top;
-            const relY = (y / rect.height) * canvas.height;
+            const relY = ((touch.clientY - rect.top) / rect.height) * canvas.height;
             
             if (game.state === 'menu' || game.state === 'gameover' || game.state === 'win') {
                 game.state = 'playing';
@@ -945,38 +951,47 @@
             }
             
             if (game.state === 'playing') {
-                // Clear any existing touch cooldown for immediate response
                 game.player.moveCooldown = 0;
                 
-                // Top 30% = move up
-                if (relY < canvas.height * 0.30) {
-                    if (game.player.targetLane > 0) {
-                        game.player.targetLane--;
-                        game.player.moveCooldown = 3;
+                // Zona de disparo (centro)
+                if (relY >= canvas.height * 0.25 && relY <= canvas.height * 0.75) {
+                    if (!game.player.shootCooldown || game.player.shootCooldown === 0) {
+                        shoot();
                     }
-                }
-                // Bottom 30% = move down
-                else if (relY > canvas.height * 0.70) {
-                    if (game.player.targetLane < 2) {
-                        game.player.targetLane++;
-                        game.player.moveCooldown = 3;
-                    }
-                }
-                // Middle = shoot
-                else if (!game.player.shootCooldown || game.player.shootCooldown === 0) {
-                    shoot();
                 }
             }
         }, { passive: false });
 
         document.addEventListener('touchmove', (e) => {
             e.preventDefault();
-            // Prevent scrolling while playing
         }, { passive: false });
 
         document.addEventListener('touchend', (e) => {
             e.preventDefault();
-            // Reset cooldowns on touch end for faster response
+            
+            if (game.state !== 'playing') return;
+            
+            const touch = e.changedTouches[0];
+            const deltaY = touch.clientY - game.lastTouchY;
+            const deltaX = touch.clientX - game.lastTouchX;
+            const deltaTime = Date.now() - game.lastTouchTime;
+            
+            // Solo procesar swipe si fue rápido (menos de 300ms)
+            if (deltaTime < 300) {
+                // Swipe vertical tiene prioridad sobre horizontal
+                if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 30) {
+                    if (deltaY < -30 && game.player.targetLane > 0) {
+                        // Swipe up
+                        game.player.targetLane--;
+                        game.player.moveCooldown = 0;
+                    } else if (deltaY > 30 && game.player.targetLane < 2) {
+                        // Swipe down
+                        game.player.targetLane++;
+                        game.player.moveCooldown = 0;
+                    }
+                }
+            }
+            
             game.player.moveCooldown = 0;
         }, { passive: false });
 
