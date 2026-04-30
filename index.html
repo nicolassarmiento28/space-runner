@@ -838,26 +838,29 @@
             ctx.fillStyle = 'rgba(0, 0, 20, 0.92)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
+            const cy = canvas.height / 2;
+            ctx.textAlign = 'center';
+
             ctx.font = '14px "Press Start 2P"';
             ctx.fillStyle = COLORS.red;
-            ctx.fillText('GAME OVER', canvas.width / 2, 250);
+            ctx.fillText('GAME OVER', canvas.width / 2, cy - 80);
             
             ctx.font = '14px "Press Start 2P"';
             ctx.fillStyle = COLORS.white;
-            ctx.fillText(`PUNTAJE FINAL: ${game.score}`, canvas.width / 2, 330);
+            ctx.fillText(`PUNTAJE FINAL: ${game.score}`, canvas.width / 2, cy - 10);
             
             if (game.score >= game.highScore && game.score > 0) {
                 ctx.fillStyle = COLORS.yellow;
-                ctx.fillText('NUEVO RECORD!', canvas.width / 2, 370);
+                ctx.fillText('NUEVO RECORD!', canvas.width / 2, cy + 35);
             } else {
                 ctx.fillStyle = COLORS.lightBlue;
-                ctx.fillText(`MEJOR: ${game.highScore}`, canvas.width / 2, 370);
+                ctx.fillText(`MEJOR: ${game.highScore}`, canvas.width / 2, cy + 35);
             }
             
             if (Math.sin(Date.now() / 250) > 0) {
                 ctx.font = '10px "Press Start 2P"';
                 ctx.fillStyle = COLORS.white;
-                ctx.fillText('ESPACIO O TOCA PARA REINICIAR', canvas.width / 2, 460);
+                ctx.fillText('ESPACIO O TOCA PARA REINICIAR', canvas.width / 2, cy + 100);
             }
         }
 
