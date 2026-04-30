@@ -667,22 +667,7 @@
         }
 
         function drawRoad() {
-            // Lane markers only - no background overlay so it matches space color
-            const roadTop = canvas.height * 0.4;
-            
-            // Lane markers
-            ctx.strokeStyle = COLORS.white;
-            ctx.globalAlpha = 0.3;
-            ctx.setLineDash([50, 30]);
-            for (let i = 0; i < 3; i++) {
-                const x = LANE_START_X() + i * LANE_WIDTH();
-                ctx.beginPath();
-                ctx.moveTo(x, roadTop);
-                ctx.lineTo(x, canvas.height);
-                ctx.stroke();
-            }
-            ctx.setLineDash([]);
-            ctx.globalAlpha = 1;
+            // Sin líneas de carril
         }
 
         function drawPlayer() {
