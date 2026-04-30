@@ -30,9 +30,12 @@
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
+    <audio id="bgMusic" src="music.mp3" loop preload="auto"></audio>
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        const bgMusic = document.getElementById('bgMusic');
+        bgMusic.volume = 0.3;
         
         function resizeCanvas() {
             canvas.width = window.innerWidth;
@@ -73,24 +76,15 @@
 
         function startMusic() {
             if (!audioCtx) initAudio();
-            if (!audioCtx || musicPlaying) return;
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume().then(() => startMusicInternal()).catch(() => {});
-            } else {
-                startMusicInternal();
-            }
+            stopMusic();
+            bgMusic.currentTime = 0;
+            const p = bgMusic.play();
+            if (p) p.catch(() => {});
+            musicPlaying = true;
         }
 
         function startMusicInternal() {
-            try {
-                musicGain = audioCtx.createGain();
-                musicGain.gain.value = 0.25;
-                musicGain.connect(audioCtx.destination);
-                nextNoteTime = audioCtx.currentTime;
-                beatCount = 0;
-                musicPlaying = true;
-                scheduleMusic();
-            } catch (e) {}
+            startMusic();
         }
 
         function scheduleMusic() {
@@ -170,10 +164,9 @@
         }
 
         function stopMusic() {
-            if (musicGain && audioCtx) {
-                musicGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
-                musicPlaying = false;
-            }
+            musicPlaying = false;
+            try { bgMusic.pause(); } catch(e) {}
+            try { bgMusic.currentTime = 0; } catch(e) {}
         }
 
         function playSound(type) {
@@ -661,8 +654,10 @@
             }
             
             drawRoad();
-            drawEntities();
-            drawPlayer();
+            if (game.state === 'playing') {
+                drawEntities();
+                drawPlayer();
+            }
             drawParticles();
             drawHUD();
             
@@ -910,8 +905,12 @@
         }
 
         function gameLoop() {
-            update();
-            draw();
+            try {
+                update();
+                draw();
+            } catch(e) {
+                console.error('Game loop error:', e);
+            }
             requestAnimationFrame(gameLoop);
         }
 
