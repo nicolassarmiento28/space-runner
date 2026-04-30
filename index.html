@@ -786,7 +786,7 @@
             ctx.font = '14px "Press Start 2P"';
             ctx.fillStyle = COLORS.white;
             ctx.textAlign = 'left';
-            ctx.fillText(`SCORE: ${game.score}`, 15, 25);
+            ctx.fillText(`PUNTOS: ${game.score}`, 15, 25);
             
             ctx.textAlign = 'right';
             ctx.fillStyle = COLORS.red;
@@ -795,7 +795,7 @@
             ctx.font = '10px "Press Start 2P"';
             ctx.fillStyle = COLORS.lightBlue;
             ctx.textAlign = 'left';
-            ctx.fillText(`BEST: ${game.highScore}`, 15, 45);
+            ctx.fillText(`MEJOR: ${game.highScore}`, 15, 45);
             
             // Speed bar
             ctx.fillStyle = '#333';
@@ -819,38 +819,38 @@
             
             ctx.font = '9px "Press Start 2P"';
             ctx.fillStyle = COLORS.lightBlue;
-            ctx.fillText('=== CONTROLS ===', canvas.width / 2, 280);
+            ctx.fillText('=== CONTROLES ===', canvas.width / 2, 280);
             
             ctx.fillStyle = COLORS.white;
             ctx.font = '8px "Press Start 2P"';
-            ctx.fillText('W / UP    -> Move Up', canvas.width / 2, 315);
-            ctx.fillText('S / DOWN  -> Move Down', canvas.width / 2, 335);
-            ctx.fillText('SPACE     -> Shoot', canvas.width / 2, 355);
+            ctx.fillText('W / ARRIBA  -> Mover Arriba', canvas.width / 2, 315);
+            ctx.fillText('S / ABAJO   -> Mover Abajo', canvas.width / 2, 335);
+            ctx.fillText('ESPACIO     -> Disparar', canvas.width / 2, 355);
             
-            ctx.fillText('SWIPE UP    -> Move Up', canvas.width / 2, 390);
-            ctx.fillText('SWIPE DOWN  -> Move Down', canvas.width / 2, 410);
-            ctx.fillText('TAP CENTER  -> Shoot', canvas.width / 2, 430);
+            ctx.fillText('DESLIZAR ARRIBA -> Mover Arriba', canvas.width / 2, 390);
+            ctx.fillText('DESLIZAR ABAJO  -> Mover Abajo', canvas.width / 2, 410);
+            ctx.fillText('TOCAR CENTRO    -> Disparar', canvas.width / 2, 430);
             
             ctx.fillStyle = COLORS.lightBlue;
-            ctx.fillText('=== GOAL ===', canvas.width / 2, 480);
+            ctx.fillText('=== OBJETIVO ===', canvas.width / 2, 480);
             
             ctx.fillStyle = COLORS.yellow;
-            ctx.fillText('Destroy enemies (+15/30 pts)', canvas.width / 2, 515);
-            ctx.fillText('Get powerups (+40 pts)', canvas.width / 2, 540);
-            ctx.fillText('Avoid collisions! (3 lives)', canvas.width / 2, 565);
+            ctx.fillText('Destruye enemigos (+15/30 pts)', canvas.width / 2, 515);
+            ctx.fillText('Recoge potenciadores (+40 pts)', canvas.width / 2, 540);
+            ctx.fillText('Evita colisiones! (3 vidas)', canvas.width / 2, 565);
             
             ctx.fillStyle = COLORS.green;
-            ctx.fillText('REACH 1500 POINTS TO WIN!', canvas.width / 2, 610);
+            ctx.fillText('LLEGA A 1500 PUNTOS PARA GANAR!', canvas.width / 2, 610);
             
             if (game.highScore > 0) {
                 ctx.fillStyle = COLORS.cyan;
-                ctx.fillText(`BEST: ${game.highScore}`, canvas.width / 2, 655);
+                ctx.fillText(`MEJOR: ${game.highScore}`, canvas.width / 2, 655);
             }
             
             if (Math.sin(Date.now() / 250) > 0) {
                 ctx.font = '10px "Press Start 2P"';
                 ctx.fillStyle = COLORS.white;
-                ctx.fillText('PRESS SPACE OR TAP TO START', canvas.width / 2, 720);
+                ctx.fillText('PRESIONA ESPACIO O TOCA PARA INICIAR', canvas.width / 2, 720);
             }
         }
 
@@ -864,20 +864,20 @@
             
             ctx.font = '14px "Press Start 2P"';
             ctx.fillStyle = COLORS.white;
-            ctx.fillText(`FINAL SCORE: ${game.score}`, canvas.width / 2, 330);
+            ctx.fillText(`PUNTAJE FINAL: ${game.score}`, canvas.width / 2, 330);
             
             if (game.score >= game.highScore && game.score > 0) {
                 ctx.fillStyle = COLORS.yellow;
-                ctx.fillText('NEW HIGH SCORE!', canvas.width / 2, 370);
+                ctx.fillText('NUEVO RECORD!', canvas.width / 2, 370);
             } else {
                 ctx.fillStyle = COLORS.lightBlue;
-                ctx.fillText(`BEST: ${game.highScore}`, canvas.width / 2, 370);
+                ctx.fillText(`MEJOR: ${game.highScore}`, canvas.width / 2, 370);
             }
             
             if (Math.sin(Date.now() / 250) > 0) {
                 ctx.font = '10px "Press Start 2P"';
                 ctx.fillStyle = COLORS.white;
-                ctx.fillText('PRESS SPACE OR TAP TO RESTART', canvas.width / 2, 460);
+                ctx.fillText('ESPACIO O TOCA PARA REINICIAR', canvas.width / 2, 460);
             }
         }
 
@@ -890,22 +890,22 @@
             ctx.font = '26px "Press Start 2P"';
             ctx.fillStyle = COLORS.green;
             ctx.textAlign = 'center';
-            ctx.fillText('YOU WIN!', canvas.width / 2, 250);
+            ctx.fillText('GANASTE!', canvas.width / 2, 250);
             ctx.globalAlpha = 1;
             
             ctx.font = '14px "Press Start 2P"';
             ctx.fillStyle = COLORS.white;
-            ctx.fillText(`FINAL SCORE: ${game.score}`, canvas.width / 2, 330);
+            ctx.fillText(`PUNTAJE FINAL: ${game.score}`, canvas.width / 2, 330);
             
             if (game.score >= game.highScore) {
                 ctx.fillStyle = COLORS.yellow;
-                ctx.fillText('NEW HIGH SCORE!', canvas.width / 2, 370);
+                ctx.fillText('NUEVO RECORD!', canvas.width / 2, 370);
             }
             
             if (Math.sin(Date.now() / 250) > 0) {
                 ctx.font = '10px "Press Start 2P"';
                 ctx.fillStyle = COLORS.white;
-                ctx.fillText('PRESS SPACE OR TAP TO RESTART', canvas.width / 2, 460);
+                ctx.fillText('ESPACIO O TOCA PARA REINICIAR', canvas.width / 2, 460);
             }
         }
 
