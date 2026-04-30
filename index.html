@@ -672,13 +672,8 @@
         }
 
         function drawRoad() {
-            // Space highway effect - position relative to canvas height
+            // Lane markers only - no background overlay so it matches space color
             const roadTop = canvas.height * 0.4;
-            const gradient = ctx.createLinearGradient(0, roadTop - 50, 0, canvas.height);
-            gradient.addColorStop(0, 'rgba(50, 50, 80, 0.3)');
-            gradient.addColorStop(1, 'rgba(30, 30, 50, 0.5)');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, roadTop, canvas.width, canvas.height - roadTop);
             
             // Lane markers
             ctx.strokeStyle = COLORS.white;
