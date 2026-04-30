@@ -441,12 +441,12 @@
             if (game.player.lane !== game.player.targetLane) {
                 game.player.canMove = false;
                 const target = game.player.lanePositions[game.player.targetLane];
-                game.player.x += (target - game.player.x) * 0.18;
-                if (Math.abs(game.player.x - target) < 1) {
+                game.player.x += (target - game.player.x) * 0.25;
+                if (Math.abs(game.player.x - target) < 2) {
                     game.player.lane = game.player.targetLane;
                     game.player.x = target;
                     game.player.canMove = true;
-                    game.player.moveCooldown = 5;
+                    game.player.moveCooldown = 0; // Allow immediate next move
                 }
             } else {
                 if (game.player.moveCooldown > 0) game.player.moveCooldown--;
@@ -919,11 +919,11 @@
             if (game.state === 'playing' && game.player.canMove && game.player.moveCooldown === 0) {
                 if ((e.code === 'ArrowUp' || e.code === 'KeyW') && game.player.targetLane > 0) {
                     game.player.targetLane--;
-                    game.player.moveCooldown = 8;
+                    game.player.moveCooldown = 3;
                 }
                 if ((e.code === 'ArrowDown' || e.code === 'KeyS') && game.player.targetLane < 2) {
                     game.player.targetLane++;
-                    game.player.moveCooldown = 8;
+                    game.player.moveCooldown = 3;
                 }
             }
         });
@@ -934,11 +934,8 @@
             
             const touch = e.touches[0];
             const rect = canvas.getBoundingClientRect();
-            const x = touch.clientX - rect.left;
             const y = touch.clientY - rect.top;
-            
-            const relX = x / rect.width * canvas.width;
-            const relY = y / rect.height * canvas.height;
+            const relY = (y / rect.height) * canvas.height;
             
             if (game.state === 'menu' || game.state === 'gameover' || game.state === 'win') {
                 game.state = 'playing';
@@ -947,24 +944,41 @@
                 return;
             }
             
-            if (game.state === 'playing' && game.player.canMove && game.player.moveCooldown === 0) {
-                if (relY < canvas.height / 2 - 80) {
+            if (game.state === 'playing') {
+                // Clear any existing touch cooldown for immediate response
+                game.player.moveCooldown = 0;
+                
+                // Top 30% = move up
+                if (relY < canvas.height * 0.30) {
                     if (game.player.targetLane > 0) {
                         game.player.targetLane--;
-                        game.player.moveCooldown = 8;
+                        game.player.moveCooldown = 3;
                     }
-                } else if (relY > canvas.height / 2 + 80) {
+                }
+                // Bottom 30% = move down
+                else if (relY > canvas.height * 0.70) {
                     if (game.player.targetLane < 2) {
                         game.player.targetLane++;
-                        game.player.moveCooldown = 8;
+                        game.player.moveCooldown = 3;
                     }
-                } else if (!game.player.shootCooldown || game.player.shootCooldown === 0) {
+                }
+                // Middle = shoot
+                else if (!game.player.shootCooldown || game.player.shootCooldown === 0) {
                     shoot();
                 }
             }
         }, { passive: false });
 
-        document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+        document.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            // Prevent scrolling while playing
+        }, { passive: false });
+
+        document.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            // Reset cooldowns on touch end for faster response
+            game.player.moveCooldown = 0;
+        }, { passive: false });
 
         document.addEventListener('touchstart', function initOnTouch() {
             initAudio();
