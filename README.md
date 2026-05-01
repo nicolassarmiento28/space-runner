@@ -9,9 +9,9 @@ Juego que combina endless runner y shooter espacial con temática de espacio pro
 - **ESPACIO** - Disparar (3 direcciones) / Iniciar juego
 
 ### Controles Táctil (Móvil/Tablet)
-- **Tocar zona superior (30% pantalla)** - Mover hacia arriba
-- **Tocar zona inferior (30% pantalla)** - Mover hacia abajo
-- **Tocar zona central** - Disparar
+- **Swipe izquierda / derecha** - Cambiar de carril
+- **Tocar zona central (25%-75% de la pantalla)** - Disparar
+- **Tocar pantalla** - Iniciar o reiniciar partida
 
 ## 🎯 Objetivo
 
@@ -21,6 +21,7 @@ Juego que combina endless runner y shooter espacial con temática de espacio pro
 - Recolecta powerups: +40 puntos
   - **(+)** = Agrega 1 vida
   - **(S)** = Escudos
+  - **(M)** = Multishot x5 temporal (~10 segundos)
 - **GANA** al llegar a **1500 puntos**
 - **PIERDE** al perder todas sus **3 vidas**
 
@@ -30,8 +31,8 @@ Juego que combina endless runner y shooter espacial con temática de espacio pro
 - Música procedural generada en tiempo real (Web Audio API)
 - Efectos de partículas al destruir enemigos
 - Sistema de puntuación con record guardado (localStorage)
-- Controles responsivos con cooldown reducido para respuesta inmediata
-- Movimiento entre carriles más fluido y rápido
+- Powerup de multishot temporal con indicador en HUD
+- Controles táctiles mejorados con detección de swipe horizontal
 - Funciona en PC y dispositivos móviles
 
 ## 🛠️ Tecnologías Usadas

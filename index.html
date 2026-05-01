@@ -244,7 +244,7 @@
             lives: 3,
             speed: 5,
             maxSpeed: 15,
-            player: { lane: 1, targetLane: 1, x: 0, y: 0, canMove: true, moveCooldown: 0, shootCooldown: 0, width: 50, height: 45, lanePositions: [0, 0, 0] },
+            player: { lane: 1, targetLane: 1, x: 0, y: 0, canMove: true, moveCooldown: 0, shootCooldown: 0, width: 50, height: 45, lanePositions: [0, 0, 0], multiShot: false, multiShotTimer: 0 },
             bullets: [],
             enemies: [],
             powerups: [],
@@ -276,6 +276,8 @@
             game.player.canMove = true;
             game.player.moveCooldown = 0;
             game.player.shootCooldown = 0;
+            game.player.multiShot = false;
+            game.player.multiShotTimer = 0;
             game.bullets = [];
             game.enemies = [];
             game.powerups = [];
@@ -340,7 +342,7 @@
             const lane = Math.floor(Math.random() * 3);
             const rand = Math.random();
             
-            if (rand < 0.2) {
+            if (rand < 0.15) {
                 game.powerups.push({
                     lane: lane,
                     x: game.player.lanePositions[lane],
@@ -349,7 +351,7 @@
                     height: 40,
                     type: 'health'
                 });
-            } else if (rand < 0.35) {
+            } else if (rand < 0.28) {
                 game.powerups.push({
                     lane: lane,
                     x: game.player.lanePositions[lane],
@@ -357,6 +359,15 @@
                     width: 35,
                     height: 40,
                     type: 'shield'
+                });
+            } else if (rand < 0.40) {
+                game.powerups.push({
+                    lane: lane,
+                    x: game.player.lanePositions[lane],
+                    y: -60,
+                    width: 35,
+                    height: 40,
+                    type: 'multishot'
                 });
             } else {
                 game.enemies.push({
@@ -380,34 +391,19 @@
         function shoot() {
             const px = game.player.x + game.player.width / 2;
             const py = game.player.y;
-            
-            game.bullets.push({
-                x: px - 12,
-                y: py - 10,
-                vx: -2,
-                vy: -12,
-                width: 4,
-                height: 10
-            });
-            
-            game.bullets.push({
-                x: px + 8,
-                y: py - 10,
-                vx: 2,
-                vy: -12,
-                width: 4,
-                height: 10
-            });
-            
-            game.bullets.push({
-                x: px - 2,
-                y: py - 15,
-                vx: 0,
-                vy: -14,
-                width: 4,
-                height: 12
-            });
-            
+
+            if (game.player.multiShot) {
+                // 5 balas en abanico
+                const angles = [-4, -2, 0, 2, 4];
+                for (let vx of angles) {
+                    game.bullets.push({ x: px - 2, y: py - 10, vx: vx, vy: -13, width: 4, height: 10 });
+                }
+            } else {
+                game.bullets.push({ x: px - 12, y: py - 10, vx: -2, vy: -12, width: 4, height: 10 });
+                game.bullets.push({ x: px + 8,  y: py - 10, vx:  2, vy: -12, width: 4, height: 10 });
+                game.bullets.push({ x: px - 2,  y: py - 15, vx:  0, vy: -14, width: 4, height: 12 });
+            }
+
             playSound('shoot');
             game.player.shootCooldown = 15;
         }
@@ -569,6 +565,9 @@
                 if (checkCollision(game.player, p)) {
                     if (p.type === 'health' && game.lives < 5) {
                         game.lives++;
+                    } else if (p.type === 'multishot') {
+                        game.player.multiShot = true;
+                        game.player.multiShotTimer = 600; // ~10 segundos a 60fps
                     }
                     game.score += 40;
                     playSound('collect');
@@ -594,6 +593,12 @@
                 if (game.particles[i].life <= 0) game.particles.splice(i, 1);
             }
             
+            // Multishot timer
+            if (game.player.multiShot) {
+                game.player.multiShotTimer--;
+                if (game.player.multiShotTimer <= 0) game.player.multiShot = false;
+            }
+
             // Spawn
             if (game.frameCount % Math.max(25, 50 - Math.floor(game.speed)) === 0) spawnEntity();
             
@@ -732,19 +737,18 @@
             
             // Powerups
             for (let p of game.powerups) {
-                ctx.shadowColor = p.type === 'health' ? COLORS.green : COLORS.cyan;
+                const color = p.type === 'health' ? COLORS.green : p.type === 'multishot' ? COLORS.orange : COLORS.cyan;
+                ctx.shadowColor = color;
                 ctx.shadowBlur = 12;
-                
-                ctx.fillStyle = p.type === 'health' ? COLORS.green : COLORS.cyan;
+                ctx.fillStyle = color;
                 ctx.beginPath();
                 ctx.arc(p.x + p.width/2, p.y + p.height/2, p.width/2, 0, Math.PI * 2);
                 ctx.fill();
-                
                 ctx.fillStyle = '#000';
                 ctx.font = '12px "Press Start 2P"';
                 ctx.textAlign = 'center';
-                ctx.fillText(p.type === 'health' ? '+' : 'S', p.x + p.width/2, p.y + p.height/2 + 4);
-                
+                const label = p.type === 'health' ? '+' : p.type === 'multishot' ? 'M' : 'S';
+                ctx.fillText(label, p.x + p.width/2, p.y + p.height/2 + 4);
                 ctx.shadowBlur = 0;
             }
             
@@ -782,6 +786,14 @@
             ctx.fillRect(15, 55, 80, 8);
             ctx.fillStyle = COLORS.cyan;
             ctx.fillRect(15, 55, (game.speed / game.maxSpeed) * 80, 8);
+
+            // Indicador multishot activo
+            if (game.player.multiShot) {
+                ctx.font = '9px "Press Start 2P"';
+                ctx.fillStyle = COLORS.orange;
+                ctx.textAlign = 'left';
+                ctx.fillText('MULTI x5', 15, 82);
+            }
         }
 
         function drawMenu() {
@@ -973,14 +985,14 @@
             const deltaX = touch.clientX - game.lastTouchX;
             const deltaTime = Date.now() - game.lastTouchTime;
             
-            // Solo procesar swipe si fue rápido (menos de 300ms) y con suficiente distancia
-            if (deltaTime < 300 && Math.abs(deltaY) > 30) {
-                if (deltaY < -30 && game.player.targetLane > 0) {
-                    // Swipe up
+            // Solo procesar swipe si fue rápido (menos de 300ms) y con suficiente distancia horizontal
+            if (deltaTime < 300 && Math.abs(deltaX) > 30 && Math.abs(deltaX) > Math.abs(deltaY)) {
+                if (deltaX < -30 && game.player.targetLane > 0) {
+                    // Swipe izquierda
                     game.player.targetLane--;
                     game.player.moveCooldown = 0;
-                } else if (deltaY > 30 && game.player.targetLane < 2) {
-                    // Swipe down
+                } else if (deltaX > 30 && game.player.targetLane < 2) {
+                    // Swipe derecha
                     game.player.targetLane++;
                     game.player.moveCooldown = 0;
                 }
