@@ -1,6 +1,7 @@
 # SPACE RUNNER
 
-Juego que combina endless runner y shooter espacial con temática de espacio profundo.
+Juego web interactivo desarrollado con JavaScript, HTML5 y CSS3 enfocado en lógica de juego, renderizado dinámico y experiencia arcade en navegador. Implementé mecánicas interactivas y control de eventos en tiempo real.
+
 
 ## 🎮 Cómo jugar
 
