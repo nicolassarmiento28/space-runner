@@ -1596,6 +1596,19 @@
         }, { once: true });
 
         canvas.addEventListener('click', (e) => {
+            initAudio();
+
+            if (game.state === 'playing' || game.state === 'paused') {
+                if (pointInRect(e.clientX, e.clientY, getPauseButtonRect())) {
+                    togglePause();
+                    return;
+                }
+                if (pointInRect(e.clientX, e.clientY, getMuteButtonRect())) {
+                    toggleMute();
+                    return;
+                }
+            }
+
             if (game.state !== 'gameover' && game.state !== 'win') return;
             const shareY = (game.state === 'gameover' ? canvas.height / 2 + 140 : canvas.height / 2 + 140 * getScaleFactor());
             if (pointInRect(e.clientX, e.clientY, getShareButtonRect(shareY))) {
