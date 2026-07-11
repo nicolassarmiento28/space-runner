@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Space Runner</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
@@ -36,6 +36,7 @@
         const ctx = canvas.getContext('2d');
         const bgMusic = document.getElementById('bgMusic');
         bgMusic.volume = 0.3;
+        bgMusic.muted = localStorage.getItem('spaceRunnerMuted') === '1';
         
         function resizeCanvas() {
             canvas.width = window.innerWidth;
@@ -53,7 +54,12 @@
         function getScaleFactor() {
             return Math.min(1, Math.max(0.6, canvas.width / 800));
         }
-        
+
+        // Fuente pixelada reservada para títulos/HUD; texto largo (instrucciones,
+        // pantallas finales) usa sans-serif del sistema por legibilidad.
+        const FONT_TITLE = '"Press Start 2P"';
+        const FONT_BODY = 'system-ui, sans-serif';
+
         const COLORS = {
             background: '#000011',
             white: '#ffffff',
@@ -86,7 +92,7 @@
             if (!audioCtx) initAudio();
             if (!musicGain) {
                 musicGain = audioCtx.createGain();
-                musicGain.gain.value = 0.3;
+                musicGain.gain.value = game.muted ? 0 : 0.3;
                 musicGain.connect(audioCtx.destination);
             }
             stopMusic();
@@ -103,16 +109,19 @@
 
         function scheduleMusic() {
             if (!audioCtx || !musicPlaying || game.state !== 'playing') return;
-            
-            const bpm = 120;
+
+            // El tempo escala con la velocidad del juego (120-160 BPM), y sube al tope con el jefe
+            const speedRatio = game.speed / game.maxSpeed;
+            const bpm = game.bossActive ? 160 : 120 + speedRatio * 40;
             const secondsPerBeat = 60 / bpm;
-            
+
             while (nextNoteTime < audioCtx.currentTime + 0.1) {
                 if (beatCount % 16 === 0) playKick(nextNoteTime);
                 if (beatCount % 16 === 8) playSnare(nextNoteTime);
                 if (beatCount % 2 === 0) playHiHat(nextNoteTime);
                 if (beatCount % 8 === 0) playSpaceBass(nextNoteTime);
-                
+                if (game.bossActive && beatCount % 4 === 0) playHiHat(nextNoteTime + secondsPerBeat / 4);
+
                 nextNoteTime += secondsPerBeat / 2;
                 beatCount++;
             }
@@ -184,7 +193,7 @@
         }
 
         function playSound(type) {
-            if (!audioCtx) return;
+            if (!audioCtx || game.muted) return;
             if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
 
             const osc = audioCtx.createOscillator();
@@ -192,19 +201,22 @@
             osc.connect(gain);
             gain.connect(audioCtx.destination);
 
+            // Pequeña variación aleatoria de pitch para que shoot/collect no suenen idénticos siempre
+            const pitch = 0.94 + Math.random() * 0.12;
+
             if (type === 'shoot') {
                 osc.type = 'square';
-                osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(220, audioCtx.currentTime + 0.1);
+                osc.frequency.setValueAtTime(880 * pitch, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(220 * pitch, audioCtx.currentTime + 0.1);
                 gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
                 osc.start();
                 osc.stop(audioCtx.currentTime + 0.1);
             } else if (type === 'collect') {
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(523, audioCtx.currentTime);
-                osc.frequency.setValueAtTime(784, audioCtx.currentTime + 0.08);
-                osc.frequency.setValueAtTime(1047, audioCtx.currentTime + 0.16);
+                osc.frequency.setValueAtTime(523 * pitch, audioCtx.currentTime);
+                osc.frequency.setValueAtTime(784 * pitch, audioCtx.currentTime + 0.08);
+                osc.frequency.setValueAtTime(1047 * pitch, audioCtx.currentTime + 0.16);
                 gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
                 osc.start();
@@ -229,24 +241,55 @@
         }
 
         class Particle {
-            constructor(x, y, color) {
+            constructor(x, y, color, shape) {
                 this.x = x;
                 this.y = y;
-                this.vx = (Math.random() - 0.5) * 5;
-                this.vy = (Math.random() - 0.5) * 5;
+                this.shape = shape || 'square';
+                if (this.shape === 'spark') {
+                    // Impacto al jugador: fragmentos alargados y rápidos
+                    this.vx = (Math.random() - 0.5) * 8;
+                    this.vy = (Math.random() - 0.5) * 8;
+                    this.size = 3 + Math.random() * 4;
+                } else if (this.shape === 'glow') {
+                    // Recolección de power-up: brillo suave que converge hacia el centro
+                    this.vx = (Math.random() - 0.5) * 2;
+                    this.vy = (Math.random() - 0.5) * 2;
+                    this.size = 3 + Math.random() * 4;
+                } else {
+                    // Explosión de enemigo: fragmentos angulares dispersos
+                    this.vx = (Math.random() - 0.5) * 5;
+                    this.vy = (Math.random() - 0.5) * 5;
+                    this.size = 2 + Math.random() * 3;
+                }
                 this.life = 1;
                 this.color = color;
-                this.size = 2 + Math.random() * 3;
+                this.angle = Math.random() * Math.PI * 2;
             }
             update() {
                 this.x += this.vx;
                 this.y += this.vy;
-                this.life -= 0.04;
+                this.life -= this.shape === 'glow' ? 0.06 : 0.04;
             }
             draw() {
                 ctx.globalAlpha = Math.max(0, this.life);
                 ctx.fillStyle = this.color;
-                ctx.fillRect(this.x - this.size/2, this.y - this.size/2, this.size, this.size);
+                if (this.shape === 'spark') {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(Math.atan2(this.vy, this.vx));
+                    ctx.fillRect(-this.size, -this.size / 4, this.size * 2, this.size / 2);
+                    ctx.restore();
+                } else if (this.shape === 'glow') {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size * this.life, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(this.angle);
+                    ctx.fillRect(-this.size / 2, -this.size / 2, this.size, this.size);
+                    ctx.restore();
+                }
                 ctx.globalAlpha = 1;
             }
         }
@@ -279,6 +322,8 @@
     comboTimer: 0,
     comboMessage: '',
     comboMessageTimer: 0,
+    muted: localStorage.getItem('spaceRunnerMuted') === '1',
+    shareFeedback: '',
 };
 
         const getLaneWidth = () => canvas.width / 3;
@@ -413,10 +458,10 @@
 
         const MAX_PARTICLES = 100;
 
-        function spawnParticle(x, y, color, count) {
+        function spawnParticle(x, y, color, count, shape) {
             for (let i = 0; i < count; i++) {
                 if (game.particles.length >= MAX_PARTICLES) break;
-                game.particles.push(new Particle(x, y, color));
+                game.particles.push(new Particle(x, y, color, shape));
             }
         }
 
@@ -440,23 +485,27 @@
             game.player.shootCooldown = 15;
         }
 
+        // Multiplicadores de paralaje: planetas (fondo lejano) reaccionan poco a la
+        // velocidad del juego, asteroides (primer plano) reaccionan mucho más que las estrellas.
+        const PARALLAX = { star: 1, planet: 0.3, asteroid: 1.8 };
+
         function updateBackground(dt) {
             for (let star of game.stars) {
-                star.y += star.speed * (game.speed / 5) * dt;
+                star.y += star.speed * (game.speed / 5) * PARALLAX.star * dt;
                 if (star.y > canvas.height) {
                     star.y = 0;
                     star.x = Math.random() * canvas.width;
                 }
             }
             for (let planet of game.planets) {
-                planet.y += planet.speed * (game.speed / 5) * dt;
+                planet.y += planet.speed * (game.speed / 5) * PARALLAX.planet * dt;
                 if (planet.y > canvas.height + 100) {
                     planet.y = -100 - Math.random() * 100;
                     planet.x = Math.random() * canvas.width;
                 }
             }
             for (let ast of game.asteroids) {
-                ast.y += ast.speed * (game.speed / 5) * dt;
+                ast.y += ast.speed * (game.speed / 5) * PARALLAX.asteroid * dt;
                 ast.x += Math.sin(ast.rotation) * 0.5;
                 ast.rotation += ast.rotationSpeed;
                 if (ast.y > canvas.height + 50) {
@@ -598,7 +647,7 @@
                     game.combo = 0;
                     game.comboTimer = 0;
                     playSound('hit');
-                    spawnParticle(game.player.x + game.player.width/2, game.player.y + game.player.height/2, COLORS.red, 25);
+                    spawnParticle(game.player.x + game.player.width/2, game.player.y + game.player.height/2, COLORS.red, 25, 'spark');
                     game.enemies.splice(i, 1);
 
                     if (game.lives <= 0) {
@@ -630,7 +679,7 @@
                     game.combo = 0;
                     game.comboTimer = 0;
                     playSound('hit');
-                    spawnParticle(game.player.x + game.player.width/2, game.player.y + game.player.height/2, COLORS.red, 25);
+                    spawnParticle(game.player.x + game.player.width/2, game.player.y + game.player.height/2, COLORS.red, 25, 'spark');
                     game.bullets.splice(i, 1);
 
                     if (game.lives <= 0) {
@@ -663,7 +712,7 @@
                     }
                     game.score += 40;
                     playSound('collect');
-                    spawnParticle(p.x + p.width/2, p.y + p.height/2, COLORS.green, 15);
+                    spawnParticle(p.x + p.width/2, p.y + p.height/2, COLORS.green, 15, 'glow');
                     game.powerups.splice(i, 1);
 
                     if (game.score >= 1500) {
@@ -753,6 +802,13 @@
             updateSpeed(dt);
         }
 
+        // Zonas de fondo: el tinte del espacio avanza cada 500 puntos, reforzando la progresión
+        const BACKGROUND_ZONES = ['#000011', '#110011', '#001108', '#110800', '#000818'];
+        function getZoneBackground() {
+            const zone = Math.floor(game.score / 500) % BACKGROUND_ZONES.length;
+            return BACKGROUND_ZONES[zone];
+        }
+
         function checkCollision(a, b) {
             const p = Math.min(8, Math.min(a.width, b.width) / 2);
             return a.x + p < b.x + b.width - p && a.x + a.width - p > b.x + p &&
@@ -774,8 +830,8 @@
                 ctx.translate(sx, sy);
                 game.screenShake--;
             }
-            // Space background
-            ctx.fillStyle = COLORS.background;
+            // Space background (el tinte cambia de "zona" cada 500 puntos)
+            ctx.fillStyle = getZoneBackground();
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
             // Stars
@@ -858,8 +914,10 @@
             
             if (game.player.hitFlash > 0) {
                 ctx.globalAlpha = game.player.hitFlash % 4 < 2 ? 0.3 : 1.0;
+            } else if (!game.player.canMove) {
+                ctx.globalAlpha = 0.6;
             }
-            
+
             ctx.shadowColor = COLORS.lightBlue;
             ctx.shadowBlur = 15;
             
@@ -936,35 +994,60 @@
                     ctx.fillStyle = hpRatio > 0.5 ? COLORS.green : hpRatio > 0.25 ? COLORS.orange : COLORS.red;
                     ctx.fillRect(e.x + 4, e.y + e.height - 6, (e.width - 8) * hpRatio, 4);
                 } else if (e.type === 'speedster') {
+                    // Silueta de rombo: distinta de todo lo demás, sin depender del color
+                    const cx = e.x + e.width / 2, cy = e.y + e.height / 2;
                     ctx.fillStyle = '#553333';
-                    ctx.fillRect(e.x, e.y, e.width, e.height);
+                    ctx.beginPath();
+                    ctx.moveTo(cx, e.y);
+                    ctx.lineTo(e.x + e.width, cy);
+                    ctx.lineTo(cx, e.y + e.height);
+                    ctx.lineTo(e.x, cy);
+                    ctx.closePath();
+                    ctx.fill();
                     ctx.fillStyle = COLORS.orange;
-                    ctx.fillRect(e.x + 3, e.y + 3, e.width - 6, 6);
+                    ctx.beginPath();
+                    ctx.moveTo(cx, e.y + 6);
+                    ctx.lineTo(e.x + e.width - 6, cy);
+                    ctx.lineTo(cx, e.y + e.height - 6);
+                    ctx.lineTo(e.x + 6, cy);
+                    ctx.closePath();
+                    ctx.fill();
                 } else if (e.type === 'boss') {
+                    const pulse = 15 + Math.sin(game.frameCount * 0.15) * 10;
                     ctx.shadowColor = COLORS.purple;
-                    ctx.shadowBlur = 20;
+                    ctx.shadowBlur = 20 + pulse;
                     ctx.fillStyle = '#552244';
                     ctx.fillRect(e.x, e.y, e.width, e.height);
-                    // Eyes
+                    // Eyes (parpadean periódicamente)
+                    const blinking = game.frameCount % 90 < 6;
                     ctx.fillStyle = COLORS.red;
-                    ctx.fillRect(e.x + 15, e.y + 20, 15, 10);
-                    ctx.fillRect(e.x + 50, e.y + 20, 15, 10);
+                    ctx.fillRect(e.x + 15, e.y + (blinking ? 24 : 20), 15, blinking ? 2 : 10);
+                    ctx.fillRect(e.x + 50, e.y + (blinking ? 24 : 20), 15, blinking ? 2 : 10);
                     ctx.fillStyle = COLORS.yellow;
                     ctx.fillRect(e.x + e.width/2 - 5, e.y + e.height - 10, 10, 10);
                     // HP bar
                     const bHpRatio = e.hp / 10;
                     ctx.fillStyle = COLORS.red;
                     ctx.fillRect(e.x + 2, e.y + 2, (e.width - 4) * bHpRatio, 5);
-                } else {
-                    // Normal or shooter
-                    ctx.fillStyle = e.type === 'shooter' ? '#664433' : '#443344';
-                    ctx.fillRect(e.x, e.y, e.width, e.height);
-                    ctx.fillStyle = e.type === 'shooter' ? COLORS.orange : COLORS.red;
+                } else if (e.type === 'shooter') {
+                    // Silueta de triángulo invertido: distinta del resto, apunta hacia el jugador
+                    ctx.fillStyle = '#664433';
+                    ctx.beginPath();
+                    ctx.moveTo(e.x, e.y);
+                    ctx.lineTo(e.x + e.width, e.y);
+                    ctx.lineTo(e.x + e.width / 2, e.y + e.height);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillStyle = COLORS.orange;
                     ctx.fillRect(e.x + 5, e.y + 5, e.width - 10, 10);
-                    if (e.type === 'shooter') {
-                        ctx.fillStyle = COLORS.yellow;
-                        ctx.fillRect(e.x + e.width/2 - 3, e.y + e.height - 5, 6, 5);
-                    }
+                    ctx.fillStyle = COLORS.yellow;
+                    ctx.fillRect(e.x + e.width/2 - 3, e.y + e.height - 8, 6, 5);
+                } else {
+                    // Normal: rectángulo simple (silueta base)
+                    ctx.fillStyle = '#443344';
+                    ctx.fillRect(e.x, e.y, e.width, e.height);
+                    ctx.fillStyle = COLORS.red;
+                    ctx.fillRect(e.x + 5, e.y + 5, e.width - 10, 10);
                 }
                 
                 ctx.shadowBlur = 0;
@@ -1083,22 +1166,100 @@
                 ctx.shadowBlur = 0;
             }
 
-            // Combo message
+            // Combo message (posicionado en el HUD superior, fuera del área de juego)
             if (game.comboMessageTimer > 0) {
                 ctx.font = `${10 * sf}px "Press Start 2P"`;
                 ctx.fillStyle = COLORS.red;
                 ctx.textAlign = 'center';
-                ctx.fillText(game.comboMessage, canvas.width / 2, canvas.height / 2 - 50 * sf);
+                ctx.fillText(game.comboMessage, canvas.width / 2, 45 * sf);
+            }
+
+            drawTouchButtons(sf);
+        }
+
+        // Botones táctiles de pausa/mute (paridad con controles de teclado en móvil)
+        function getPauseButtonRect() {
+            const sf = getScaleFactor();
+            const s = 26 * sf;
+            return { x: canvas.width - s - 12 * sf, y: canvas.height - s - 12 * sf, w: s, h: s };
+        }
+        function getMuteButtonRect() {
+            const sf = getScaleFactor();
+            const s = 26 * sf;
+            return { x: canvas.width - s * 2 - 24 * sf, y: canvas.height - s - 12 * sf, w: s, h: s };
+        }
+
+        function drawTouchButtons(sf) {
+            if (game.state !== 'playing' && game.state !== 'paused') return;
+
+            const pause = getPauseButtonRect();
+            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            ctx.fillRect(pause.x, pause.y, pause.w, pause.h);
+            ctx.fillStyle = COLORS.white;
+            if (game.state === 'paused') {
+                ctx.beginPath();
+                ctx.moveTo(pause.x + pause.w * 0.3, pause.y + pause.h * 0.2);
+                ctx.lineTo(pause.x + pause.w * 0.3, pause.y + pause.h * 0.8);
+                ctx.lineTo(pause.x + pause.w * 0.8, pause.y + pause.h * 0.5);
+                ctx.closePath();
+                ctx.fill();
+            } else {
+                ctx.fillRect(pause.x + pause.w * 0.28, pause.y + pause.h * 0.2, pause.w * 0.18, pause.h * 0.6);
+                ctx.fillRect(pause.x + pause.w * 0.55, pause.y + pause.h * 0.2, pause.w * 0.18, pause.h * 0.6);
+            }
+
+            const mute = getMuteButtonRect();
+            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            ctx.fillRect(mute.x, mute.y, mute.w, mute.h);
+            ctx.fillStyle = COLORS.white;
+            ctx.beginPath();
+            ctx.moveTo(mute.x + mute.w * 0.2, mute.y + mute.h * 0.35);
+            ctx.lineTo(mute.x + mute.w * 0.45, mute.y + mute.h * 0.35);
+            ctx.lineTo(mute.x + mute.w * 0.65, mute.y + mute.h * 0.15);
+            ctx.lineTo(mute.x + mute.w * 0.65, mute.y + mute.h * 0.85);
+            ctx.lineTo(mute.x + mute.w * 0.45, mute.y + mute.h * 0.65);
+            ctx.lineTo(mute.x + mute.w * 0.2, mute.y + mute.h * 0.65);
+            ctx.closePath();
+            ctx.fill();
+            if (game.muted) {
+                ctx.strokeStyle = COLORS.red;
+                ctx.lineWidth = 2 * sf;
+                ctx.beginPath();
+                ctx.moveTo(mute.x + mute.w * 0.1, mute.y + mute.h * 0.1);
+                ctx.lineTo(mute.x + mute.w * 0.9, mute.y + mute.h * 0.9);
+                ctx.stroke();
+            }
+        }
+
+        function pointInRect(px, py, r) {
+            return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+        }
+
+        function toggleMute() {
+            game.muted = !game.muted;
+            bgMusic.muted = game.muted;
+            if (musicGain) musicGain.gain.value = game.muted ? 0 : 0.3;
+            localStorage.setItem('spaceRunnerMuted', game.muted ? '1' : '0');
+        }
+
+        function togglePause() {
+            if (game.state === 'playing') {
+                game.state = 'paused';
+                stopMusic();
+            } else if (game.state === 'paused') {
+                game.state = 'playing';
+                setTimeout(() => startMusic(), 100);
             }
         }
 
         function drawMenu() {
+            const sf = getScaleFactor();
             ctx.fillStyle = 'rgba(0, 0, 20, 0.85)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             // Animated ship preview
-            const previewX = canvas.width / 2 + Math.sin(Date.now() / 2000) * 120;
-            const previewY = canvas.height * 0.35;
+            const previewX = canvas.width / 2 + Math.sin(Date.now() / 2000) * 120 * sf;
+            const previewY = canvas.height * 0.2;
             
             // Engine trail particles
             for (let i = 0; i < 5; i++) {
@@ -1142,67 +1303,61 @@
             ctx.fillRect(36, 37, 4, 4);
             ctx.restore();
             
-            const glow = Math.sin(Date.now() / 400) * 0.3 + 0.7;
-            ctx.globalAlpha = glow;
-            ctx.font = '22px "Press Start 2P"';
-            ctx.fillStyle = COLORS.white;
+            const cx = canvas.width / 2;
+            // title:true -> fuente pixelada (identidad retro); el resto usa FONT_BODY (legibilidad)
+            const lines = [
+                { y: 0.30, text: 'SPACE', size: 22, color: COLORS.white, glow: true, title: true },
+                { y: 0.335, text: 'RUNNER', size: 22, color: COLORS.white, glow: true, title: true },
+                { y: 0.40, text: '=== CONTROLES ===', size: 10, color: COLORS.lightBlue, title: true },
+                { y: 0.435, text: 'A / IZQUIERDA <- Mover Izquierda', size: 9, color: COLORS.white },
+                { y: 0.455, text: 'D / DERECHA  -> Mover Derecha', size: 9, color: COLORS.white },
+                { y: 0.475, text: 'ESPACIO     -> Disparar', size: 9, color: COLORS.white },
+                { y: 0.505, text: 'DESLIZAR IZQ/DER -> Mover carril', size: 9, color: COLORS.white },
+                { y: 0.525, text: 'TOCAR CENTRO    -> Disparar', size: 9, color: COLORS.white },
+                { y: 0.565, text: '=== OBJETIVO ===', size: 10, color: COLORS.lightBlue, title: true },
+                { y: 0.60, text: 'Destruye enemigos (+15/30 pts)', size: 9, color: COLORS.yellow },
+                { y: 0.62, text: 'Recoge potenciadores (+40 pts)', size: 9, color: COLORS.yellow },
+                { y: 0.64, text: 'Evita colisiones! (3 vidas)', size: 9, color: COLORS.yellow },
+                { y: 0.675, text: 'LLEGA A 1500 PUNTOS PARA GANAR!', size: 9, color: COLORS.green, title: true },
+            ];
+
             ctx.textAlign = 'center';
-            ctx.fillText('SPACE', canvas.width / 2, 160);
-            ctx.fillText('RUNNER', canvas.width / 2, 195);
-            ctx.globalAlpha = 1;
-            
-            ctx.font = '9px "Press Start 2P"';
-            ctx.fillStyle = COLORS.lightBlue;
-            ctx.fillText('=== CONTROLES ===', canvas.width / 2, 280);
-            
-            ctx.fillStyle = COLORS.white;
-            ctx.font = '8px "Press Start 2P"';
-            ctx.fillText('A / IZQUIERDA <- Mover Izquierda', canvas.width / 2, 315);
-            ctx.fillText('D / DERECHA  -> Mover Derecha', canvas.width / 2, 335);
-            ctx.fillText('ESPACIO     -> Disparar', canvas.width / 2, 355);
-            
-            ctx.fillText('DESLIZAR IZQUIERDA <- Mover Izquierda', canvas.width / 2, 390);
-            ctx.fillText('DESLIZAR DERECHA  -> Mover Derecha', canvas.width / 2, 410);
-            ctx.fillText('TOCAR CENTRO    -> Disparar', canvas.width / 2, 430);
-            
-            ctx.fillStyle = COLORS.lightBlue;
-            ctx.fillText('=== OBJETIVO ===', canvas.width / 2, 480);
-            
-            ctx.fillStyle = COLORS.yellow;
-            ctx.fillText('Destruye enemigos (+15/30 pts)', canvas.width / 2, 515);
-            ctx.fillText('Recoge potenciadores (+40 pts)', canvas.width / 2, 540);
-            ctx.fillText('Evita colisiones! (3 vidas)', canvas.width / 2, 565);
-            
-            ctx.fillStyle = COLORS.green;
-            ctx.fillText('LLEGA A 1500 PUNTOS PARA GANAR!', canvas.width / 2, 610);
-            
-            if (game.highScore > 0) {
-                ctx.fillStyle = COLORS.cyan;
-                ctx.fillText(`MEJOR: ${game.highScore}`, canvas.width / 2, 655);
+            for (const l of lines) {
+                if (l.glow) { ctx.globalAlpha = Math.sin(Date.now() / 400) * 0.3 + 0.7; }
+                ctx.font = `${l.size * sf}px ${l.title ? FONT_TITLE : FONT_BODY}`;
+                ctx.fillStyle = l.color;
+                ctx.fillText(l.text, cx, canvas.height * l.y);
+                if (l.glow) ctx.globalAlpha = 1;
             }
-            
+
+            if (game.highScore > 0) {
+                ctx.font = `${8 * sf}px ${FONT_TITLE}`;
+                ctx.fillStyle = COLORS.cyan;
+                ctx.fillText(`MEJOR: ${game.highScore}`, cx, canvas.height * 0.72);
+            }
+
             if (Math.sin(Date.now() / 250) > 0) {
-                ctx.font = '10px "Press Start 2P"';
+                ctx.font = `${11 * sf}px ${FONT_BODY}`;
                 ctx.fillStyle = COLORS.white;
-                ctx.fillText('PRESIONA ESPACIO O TOCA PARA INICIAR', canvas.width / 2, 720);
+                ctx.fillText('PRESIONA ESPACIO O TOCA PARA INICIAR', cx, canvas.height * 0.94);
             }
         }
 
         function drawGameOver() {
             ctx.fillStyle = 'rgba(0, 0, 20, 0.92)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
+
             const cy = canvas.height / 2;
             ctx.textAlign = 'center';
 
-            ctx.font = '14px "Press Start 2P"';
+            ctx.font = `14px ${FONT_TITLE}`;
             ctx.fillStyle = COLORS.red;
             ctx.fillText('GAME OVER', canvas.width / 2, cy - 80);
-            
-            ctx.font = '14px "Press Start 2P"';
+
+            ctx.font = `16px ${FONT_BODY}`;
             ctx.fillStyle = COLORS.white;
             ctx.fillText(`PUNTAJE FINAL: ${game.score}`, canvas.width / 2, cy - 10);
-            
+
             if (game.score >= game.highScore && game.score > 0) {
                 ctx.fillStyle = COLORS.yellow;
                 ctx.fillText('NUEVO RECORD!', canvas.width / 2, cy + 35);
@@ -1210,40 +1365,80 @@
                 ctx.fillStyle = COLORS.lightBlue;
                 ctx.fillText(`MEJOR: ${game.highScore}`, canvas.width / 2, cy + 35);
             }
-            
+
             if (Math.sin(Date.now() / 250) > 0) {
-                ctx.font = '10px "Press Start 2P"';
+                ctx.font = `12px ${FONT_BODY}`;
                 ctx.fillStyle = COLORS.white;
                 ctx.fillText('ESPACIO O TOCA PARA REINICIAR', canvas.width / 2, cy + 100);
             }
+
+            drawShareButton(cy + 140);
+        }
+
+        // Botón "compartir puntaje": Web Share API si está disponible, si no copia al portapapeles
+        function getShareButtonRect(y) {
+            const w = 220, h = 44;
+            return { x: canvas.width / 2 - w / 2, y: y - h / 2, w, h };
+        }
+
+        function drawShareButton(y) {
+            const rect = getShareButtonRect(y);
+            ctx.fillStyle = 'rgba(136, 204, 255, 0.15)';
+            ctx.strokeStyle = COLORS.lightBlue;
+            ctx.lineWidth = 2;
+            ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+            ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+            ctx.font = `12px ${FONT_BODY}`;
+            ctx.fillStyle = COLORS.lightBlue;
+            ctx.textAlign = 'center';
+            ctx.fillText(game.shareFeedback || 'COMPARTIR PUNTAJE', canvas.width / 2, rect.y + rect.h / 2 + 4);
+        }
+
+        async function shareScore() {
+            const text = `Hice ${game.score} puntos en Space Runner!`;
+            try {
+                if (navigator.share) {
+                    await navigator.share({ text, title: 'Space Runner' });
+                } else if (navigator.clipboard) {
+                    await navigator.clipboard.writeText(text);
+                    game.shareFeedback = 'COPIADO AL PORTAPAPELES';
+                    setTimeout(() => { game.shareFeedback = ''; }, 1500);
+                }
+            } catch (e) {}
         }
 
         function drawWin() {
+            const sf = getScaleFactor();
             ctx.fillStyle = 'rgba(0, 0, 20, 0.92)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
+
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            ctx.textAlign = 'center';
+
             const glow = Math.sin(Date.now() / 300) * 0.3 + 0.7;
             ctx.globalAlpha = glow;
-            ctx.font = '26px "Press Start 2P"';
+            ctx.font = `${22 * sf}px ${FONT_TITLE}`;
             ctx.fillStyle = COLORS.green;
-            ctx.textAlign = 'center';
-            ctx.fillText('GANASTE!', canvas.width / 2, 250);
+            ctx.fillText('GANASTE!', cx, cy - 80 * sf);
             ctx.globalAlpha = 1;
-            
-            ctx.font = '14px "Press Start 2P"';
+
+            ctx.font = `${16 * sf}px ${FONT_BODY}`;
             ctx.fillStyle = COLORS.white;
-            ctx.fillText(`PUNTAJE FINAL: ${game.score}`, canvas.width / 2, 330);
-            
+            ctx.fillText(`PUNTAJE FINAL: ${game.score}`, cx, cy - 10 * sf);
+
             if (game.score >= game.highScore) {
                 ctx.fillStyle = COLORS.yellow;
-                ctx.fillText('NUEVO RECORD!', canvas.width / 2, 370);
+                ctx.fillText('NUEVO RECORD!', cx, cy + 35 * sf);
             }
-            
+
             if (Math.sin(Date.now() / 250) > 0) {
-                ctx.font = '10px "Press Start 2P"';
+                ctx.font = `${12 * sf}px ${FONT_BODY}`;
                 ctx.fillStyle = COLORS.white;
-                ctx.fillText('ESPACIO O TOCA PARA REINICIAR', canvas.width / 2, 460);
+                ctx.fillText('ESPACIO O TOCA PARA REINICIAR', cx, cy + 100 * sf);
             }
+
+            drawShareButton(cy + 140 * sf);
         }
 
         function drawPause() {
@@ -1259,6 +1454,7 @@
             ctx.fillStyle = COLORS.lightBlue;
             ctx.fillText('ESC / P PARA CONTINUAR', canvas.width / 2, canvas.height / 2 + 10);
             ctx.fillText('ESPACIO PARA REINICIAR', canvas.width / 2, canvas.height / 2 + 40);
+            ctx.fillText('M PARA SILENCIAR', canvas.width / 2, canvas.height / 2 + 70);
         }
 
         let lastTime = 0;
@@ -1280,16 +1476,16 @@
 
             if ((e.code === 'Escape' || e.code === 'KeyP') && (game.state === 'playing' || game.state === 'paused')) {
                 e.preventDefault();
-                if (game.state === 'playing') {
-                    game.state = 'paused';
-                    stopMusic();
-                } else {
-                    game.state = 'playing';
-                    setTimeout(() => startMusic(), 100);
-                }
+                togglePause();
                 return;
             }
-            
+
+            if (e.code === 'KeyM') {
+                e.preventDefault();
+                toggleMute();
+                return;
+            }
+
             if (e.code === 'Space') {
                 e.preventDefault();
                 if (game.state === 'menu' || game.state === 'gameover' || game.state === 'win' || game.state === 'paused') {
@@ -1325,16 +1521,35 @@
             // Use touch position directly since canvas fills the screen
             const relY = touch.clientY;
             
+            if (game.state === 'gameover' || game.state === 'win') {
+                const shareY = (game.state === 'gameover' ? canvas.height / 2 + 140 : canvas.height / 2 + 140 * getScaleFactor());
+                if (pointInRect(touch.clientX, touch.clientY, getShareButtonRect(shareY))) {
+                    shareScore();
+                    return;
+                }
+            }
+
             if (game.state === 'menu' || game.state === 'gameover' || game.state === 'win') {
                 game.state = 'playing';
                 initGame();
                 setTimeout(() => startMusic(), 100);
                 return;
             }
-            
+
+            if (game.state === 'playing' || game.state === 'paused') {
+                if (pointInRect(touch.clientX, touch.clientY, getPauseButtonRect())) {
+                    togglePause();
+                    return;
+                }
+                if (pointInRect(touch.clientX, touch.clientY, getMuteButtonRect())) {
+                    toggleMute();
+                    return;
+                }
+            }
+
             if (game.state === 'playing') {
                 game.player.moveCooldown = 0;
-                
+
                 // Zona de disparo (centro) - 25% a 75% de la pantalla
                 if (relY >= canvas.height * 0.25 && relY <= canvas.height * 0.75) {
                     if (!game.player.shootCooldown || game.player.shootCooldown === 0) {
@@ -1379,6 +1594,14 @@
             initAudio();
             document.removeEventListener('click', initOnClick);
         }, { once: true });
+
+        canvas.addEventListener('click', (e) => {
+            if (game.state !== 'gameover' && game.state !== 'win') return;
+            const shareY = (game.state === 'gameover' ? canvas.height / 2 + 140 : canvas.height / 2 + 140 * getScaleFactor());
+            if (pointInRect(e.clientX, e.clientY, getShareButtonRect(shareY))) {
+                shareScore();
+            }
+        });
 
         initStars();
         initPlanets();
